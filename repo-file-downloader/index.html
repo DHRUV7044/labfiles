@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RepoFile Explorer & Downloader</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpath d='M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'%3e%3c/path%3e%3c/svg%3e">
+  
+  <!-- Prism.js styling for code highlighting -->
+  <link rel="stylesheet" href="vendor/prism-tomorrow.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- Top App Navigation Bar -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-icon">
+        <i data-lucide="folder-git-2"></i>
+      </div>
+      <div class="brand-titles">
+        <h1>
+          RepoFile Explorer
+          <span class="brand-badge">Direct DL</span>
+        </h1>
+        <p>Browse &amp; download files, folders, or ZIP archives directly from GitHub</p>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <!-- Dark / Light Mode Toggle -->
+      <button id="themeToggleBtn" class="btn btn-secondary btn-icon-only" title="Toggle Theme" aria-label="Toggle Theme">
+        <i data-lucide="sun" id="themeIcon"></i>
+      </button>
+
+      <!-- View on GitHub button -->
+      <a id="externalRepoLink" href="https://github.com/DHRUV7044/labfiles" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" title="Open repository on GitHub">
+        <i data-lucide="github"></i>
+        <span>GitHub</span>
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-container">
+    
+    <!-- Repository Input / Switcher Panel -->
+    <section class="repo-panel">
+      <form id="repoForm" class="repo-input-row" onsubmit="event.preventDefault(); window.app.handleLoadRepo();">
+        <div class="input-group">
+          <i data-lucide="git-branch" class="input-prefix-icon"></i>
+          <input 
+            type="text" 
+            id="repoInput" 
+            class="text-input" 
+            value="git@github.com:DHRUV7044/labfiles.git"
+            placeholder="Paste repo URL (e.g. git@github.com:owner/repo.git or https://github.com/owner/repo)"
+            spellcheck="false"
+            autocomplete="off"
+            required
+          />
+        </div>
+        <button type="submit" class="btn btn-primary" id="exploreBtn">
+          <i data-lucide="folder-search"></i>
+          <span>Explore Repo</span>
+        </button>
+      </form>
+
+      <!-- Quick Preset & Token Drawer -->
+      <div class="quick-bar">
+        <div class="preset-pills">
+          <span style="font-weight: 500;">Quick Presets:</span>
+          <button type="button" class="preset-pill" onclick="window.app.setRepoAndLoad('git@github.com:DHRUV7044/labfiles.git')">
+            <i data-lucide="bookmark"></i> DHRUV7044/labfiles (Fixed)
+          </button>
+        </div>
+
+        <div>
+          <button type="button" class="token-toggle-btn" id="tokenToggleBtn" onclick="window.app.toggleTokenBox()">
+            <i data-lucide="key"></i>
+            <span>GitHub Token (Optional)</span>
+            <i data-lucide="chevron-down" id="tokenChevron"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Collapsible GitHub Token Settings -->
+      <div id="tokenBox" class="token-box">
+        <div class="input-group">
+          <i data-lucide="lock" class="input-prefix-icon"></i>
+          <input 
+            type="password" 
+            id="tokenInput" 
+            class="text-input" 
+            placeholder="Personal Access Token (for private repos or higher API limits)"
+          />
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="window.app.saveToken()">
+          Save Token
+        </button>
+      </div>
+    </section>
+
+    <!-- Explorer Main Card -->
+    <section class="explorer-card">
+      
+      <!-- Toolbar: Breadcrumbs & Controls -->
+      <div class="explorer-toolbar">
+        <!-- Interactive Breadcrumbs -->
+        <nav class="breadcrumbs" id="breadcrumbsNav" aria-label="Breadcrumb navigation">
+          <!-- Populated by JS -->
+        </nav>
+
+        <!-- Controls: Search, Branch, ZIP Folder -->
+        <div class="toolbar-controls">
+          <!-- Search filter within current directory -->
+          <div class="search-box">
+            <i data-lucide="search" class="search-icon"></i>
+            <input 
+              type="text" 
+              id="filterInput" 
+              placeholder="Filter current files..." 
+              oninput="window.app.handleFilterFiles(this.value)"
+            />
+          </div>
+
+          <!-- Branch selector dropdown -->
+          <select id="branchSelect" class="branch-select" onchange="window.app.handleBranchChange(this.value)" title="Switch Branch">
+            <option value="main">main</option>
+          </select>
+
+          <!-- Download current folder as ZIP -->
+          <button type="button" class="btn btn-secondary btn-sm" id="downloadZipBtn" onclick="window.app.downloadCurrentFolderZip()" title="Download this entire folder as a ZIP file">
+            <i data-lucide="archive"></i>
+            <span>Download Folder ZIP</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Meta information bar -->
+      <div class="meta-bar">
+        <span id="currentPathText">Path: /</span>
+        <span id="fileCountText">Loading...</span>
+      </div>
+
+      <!-- File List Table -->
+      <ul class="file-list" id="fileList">
+        <!-- Dynamic file and folder rows will be rendered here -->
+      </ul>
+
+      <!-- Loading State -->
+      <div id="loadingState" class="state-box" style="display: none;">
+        <div class="spinner"></div>
+        <p>Fetching repository contents from GitHub...</p>
+      </div>
+
+      <!-- Empty / Error State -->
+      <div id="emptyState" class="state-box" style="display: none;">
+        <i data-lucide="folder-x" style="width: 48px; height: 48px; color: var(--text-muted); margin-bottom: 12px;"></i>
+        <h3 id="emptyTitle" style="font-size: 1.1rem; font-weight: 600; margin-bottom: 6px;">Folder is Empty</h3>
+        <p id="emptyMessage" style="font-size: 0.875rem;">No files or subdirectories found in this path.</p>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- In-App File Preview Modal -->
+  <div id="previewModal" class="modal-overlay" onclick="if(event.target === this) window.app.closePreviewModal();">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="file" id="previewIcon"></i>
+          <h3 id="previewTitle">File Preview</h3>
+          <span class="file-badge" id="previewSizeBadge">0 KB</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <a id="previewDownloadBtn" href="#" download class="btn btn-primary btn-sm" title="Download file to device">
+            <i data-lucide="download"></i>
+            <span>Download</span>
+          </a>
+          <button type="button" class="btn btn-secondary btn-icon-only" onclick="window.app.closePreviewModal()" title="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" id="previewBody">
+        <!-- Preview content injected here (iframe, pre/code, or img) -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ZIP Download Progress Modal -->
+  <div id="zipModal" class="modal-overlay">
+    <div class="modal-container" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <i data-lucide="archive"></i>
+          <h3>Archiving Folder</h3>
+        </div>
+        <button type="button" class="btn btn-secondary btn-icon-only" onclick="window.app.cancelZipDownload()" title="Cancel">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <div class="modal-body" style="min-height: auto; padding: 24px;">
+        <div class="progress-container">
+          <div class="spinner" id="zipSpinner" style="margin-bottom: 12px;"></div>
+          <h4 id="zipStatusTitle" style="font-weight: 600; margin-bottom: 6px;">Fetching folder files...</h4>
+          <p id="zipStatusDetail" style="font-size: 0.825rem; color: var(--text-secondary); margin-bottom: 12px;">Connecting to GitHub API</p>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="zipProgressBar"></div>
+          </div>
+          <span id="zipProgressPercent" style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted);">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <i data-lucide="check-circle" id="toastIcon"></i>
+    <span id="toastMessage">Action completed</span>
+  </div>
+
+  <!-- Scripts -->
+  <script src="vendor/lucide.min.js"></script>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="vendor/prism.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
